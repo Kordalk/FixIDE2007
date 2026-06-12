@@ -93,9 +93,9 @@ var
   FTimerWrapper: TTimerWrapper = nil;
   FCompilerPipe: TPipeConsole = nil;
   FKeyHook: HHOOK = 0;
-  FDelphiBinPath: String = '';
   FIsOurCompilation: Boolean = False;
-  FActionFix: TAction = nil; 
+  FActionFix: TAction = nil;
+  DelphiBinPath: String = '';
   DelphiHintWindowWnd: HWND = 0;
   DelphiOriginalParentWnd: HWND = 0;
 
@@ -130,6 +130,7 @@ procedure TFixIDEWizard.Execute; begin end;
 function GetDelphi2007BinPath: String;
 var
   Reg: TRegistry;
+  ShortBuf: array [0..MAX_PATH] of Char;
 begin
   Result := ''; Reg := TRegistry.Create(KEY_READ);
   try
@@ -152,8 +153,13 @@ begin
   finally
     Reg.Free;
   end;
+
   if Result <> '' then
-    Result := IncludeTrailingPathDelimiter(Result) + 'bin\dcc32.exe'
+  begin
+    // Переводим абсолютные пути и папки в DOS-формат (защита от пробелов в Win10)
+    GetShortPathName(PChar(IncludeTrailingPathDelimiter(Result) + 'bin\dcc32.exe'), ShortBuf, MAX_PATH);
+    Result := String(ShortBuf);
+  end
   else Result := 'dcc32.exe';
 end;
 
@@ -347,7 +353,8 @@ begin
     end;
 
     // Собираем строку компиляции для dcc32
-    DccCmd := Format('CD /d %s && C:\PROGRA~2\D2007\bin\dcc32.exe -B -Q -$D+ -$L+ ' + ShortPath, [ShortProjPath]);
+    //DccCmd := Format('CD /d %s && C:\PROGRA~2\D2007\bin\dcc32.exe -B -Q -$D+ -$L+ ' + ShortPath, [ShortProjPath]);
+    DccCmd := Format('CD /d %s && %s -B -Q -$D+ -$L+ ' + ShortPath, [ShortProjPath, DelphiBinPath]);
     FCompilerPipe.SignCmd(DccCmd);
     
     for I := 0 to Screen.FormCount - 1 do
@@ -1080,7 +1087,7 @@ procedure Register;
 begin
   LoadPluginSettings;
   RegisterPackageWizard(TFixIDEWizard.Create as IOTAWizard);
-  FDelphiBinPath := GetDelphi2007BinPath;
+  DelphiBinPath := GetDelphi2007BinPath;
 
   if FCompilerPipe = nil then FCompilerPipe := TPipeConsole.CreateConsole;
   if FPluginWrapper = nil then FPluginWrapper := TPluginWrapper.Create;
